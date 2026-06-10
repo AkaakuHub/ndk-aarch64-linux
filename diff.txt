@@ -1,225 +1,79 @@
+This is a human-readable summary of the r26d local changes used to build Linux AArch64 host tools.
+It is not a directly applicable patch file. Apply the changes carefully to the matching Android r26d toolchain source tree.
 
-project prebuilts/build-tools/
-diff --git a/linux-arm64/bin/bison b/linux-arm64/bin/bison
-deleted file mode 100755
-index d6eace3..0000000
-Binary files a/linux-arm64/bin/bison and /dev/null differ
-diff --git a/linux-arm64/bin/bison b/linux-arm64/bin/bison
-new file mode 120000
-index 0000000..f35e957
---- /dev/null
-+++ b/linux-arm64/bin/bison
-@@ -0,0 +1 @@
-+/bin/bison
-\ No newline at end of file
-diff --git a/linux-arm64/bin/ninja b/linux-arm64/bin/ninja
-deleted file mode 100755
-index 79ff43b..0000000
-Binary files a/linux-arm64/bin/ninja and /dev/null differ
-diff --git a/linux-arm64/bin/ninja b/linux-arm64/bin/ninja
-new file mode 120000
-index 0000000..2237e03
---- /dev/null
-+++ b/linux-arm64/bin/ninja
-@@ -0,0 +1 @@
-+/bin/ninja
-\ No newline at end of file
+Base:
+  NDK: r26d / 26.3.11579264
+  Android clang: 17.0.2 based on r487747e
+  toolchain/llvm_android: 0f058ab00ec6c9b8b39956c1393bcc405a5498d3
+  toolchain/llvm-project: c4c5e79dd4b4c78eee7cffd9b0d7394b5bedcf12
+
+project external/toolchain-utils/
+  Checked out the revision compatible with the r26d Android LLVM build scripts.
+  source_manager.py was adjusted to pass --filesdir_path to patch_manager when needed.
 
 project toolchain/llvm_android/
-diff --git a/do_build.py b/do_build.py
-index e3747ce..de4eee3 100755
---- a/do_build.py
-+++ b/do_build.py
-@@ -1075,46 +1075,47 @@ def main():
-     libzstd_builder = builders.ZstdBuilder(host_configs)
-     libzstd_builder.build()
- 
--    if not args.bootstrap_use_prebuilt and not args.bootstrap_use:
--        stage1 = builders.Stage1Builder(host_configs)
--        stage1.build_name = 'stage1'
--        stage1.svn_revision = android_version.get_svn_revision()
--        # Build lldb for lldb-tblgen. It will be used to build lldb-server and windows lldb.
--        stage1.build_lldb = build_lldb
--        stage1.enable_mlgo = mlgo
--        stage1.build_extra_tools = args.run_tests_stage1
--        # In a debug or instrumented build, stage1 toolchain builds the stage2
--        # runtimes.  We need cross runtimes in stage1 so CMake can find musl libc++
--        # for stage2 musl runtimes.
--        stage1.build_cross_runtimes = hosts.build_host().is_linux and (args.debug or instrumented)
--        stage1.libzstd = libzstd_builder
--        stage1.build()
--        if hosts.build_host().is_linux:
--            add_header_links('stage1', host_config=configs.host_config(musl))
--        # stage1 test is off by default, turned on by --run-tests-stage1,
--        # and suppressed by --skip-tests.
--        if not args.skip_tests and args.run_tests_stage1:
--            stage1.test()
--        set_default_toolchain(stage1.installed_toolchain)
--    if args.bootstrap_use:
--        # Remove previous install directories, since the bootstrap compiler
--        # will overwrite install directories.
--        if (paths.OUT_DIR / 'stage1-install').exists():
--            shutil.rmtree(paths.OUT_DIR / 'stage1-install')
--        if (paths.OUT_DIR / 'stage2-install').exists():
--            shutil.rmtree(paths.OUT_DIR / 'stage2-install')
--
--        with timer.Timer('extract_bootstrap'):
--            utils.extract_tarball(paths.OUT_DIR, args.bootstrap_use)
--
--        # If we were to use the full build as bootstrap, we need to rename it to stage-install.
--        if (paths.OUT_DIR / 'stage2-install').exists():
--            (paths.OUT_DIR / 'stage2-install').rename(paths.OUT_DIR / 'stage1-install')
--        set_default_toolchain(toolchains.Toolchain(paths.OUT_DIR / 'stage1-install', paths.OUT_DIR / 'stage1'))
--    if args.bootstrap_build_only:
--        with timer.Timer('package_bootstrap'):
--            utils.create_tarball(paths.OUT_DIR, ['stage1', 'stage1-install'], paths.DIST_DIR / 'stage1-install.tar.xz')
--        return
-+    # if not args.bootstrap_use_prebuilt and not args.bootstrap_use:
-+    #     stage1 = builders.Stage1Builder(host_configs)
-+    #     stage1.build_name = 'stage1'
-+    #     stage1.svn_revision = android_version.get_svn_revision()
-+    #     # Build lldb for lldb-tblgen. It will be used to build lldb-server and windows lldb.
-+    #     stage1.build_lldb = build_lldb
-+    #     stage1.enable_mlgo = mlgo
-+    #     stage1.build_extra_tools = args.run_tests_stage1
-+    #     # In a debug or instrumented build, stage1 toolchain builds the stage2
-+    #     # runtimes.  We need cross runtimes in stage1 so CMake can find musl libc++
-+    #     # for stage2 musl runtimes.
-+    #     stage1.build_cross_runtimes = hosts.build_host().is_linux and (args.debug or instrumented)
-+    #     stage1.libzstd = libzstd_builder
-+    #     stage1.build()
-+    #     if hosts.build_host().is_linux:
-+    #         add_header_links('stage1', host_config=configs.host_config(musl))
-+    #     # stage1 test is off by default, turned on by --run-tests-stage1,
-+    #     # and suppressed by --skip-tests.
-+    #     if not args.skip_tests and args.run_tests_stage1:
-+    #         stage1.test()
-+    #     set_default_toolchain(stage1.installed_toolchain)
-+    # if args.bootstrap_use:
-+    #     # Remove previous install directories, since the bootstrap compiler
-+    #     # will overwrite install directories.
-+    #     if (paths.OUT_DIR / 'stage1-install').exists():
-+    #         shutil.rmtree(paths.OUT_DIR / 'stage1-install')
-+    #     if (paths.OUT_DIR / 'stage2-install').exists():
-+    #         shutil.rmtree(paths.OUT_DIR / 'stage2-install')
-+
-+    #     with timer.Timer('extract_bootstrap'):
-+    #         utils.extract_tarball(paths.OUT_DIR, args.bootstrap_use)
-+
-+    #     # If we were to use the full build as bootstrap, we need to rename it to stage-install.
-+    #     if (paths.OUT_DIR / 'stage2-install').exists():
-+    #         (paths.OUT_DIR / 'stage2-install').rename(paths.OUT_DIR / 'stage1-install')
-+    #     set_default_toolchain(toolchains.Toolchain(paths.OUT_DIR / 'stage1-install', paths.OUT_DIR / 'stage1'))
-+    # if args.bootstrap_build_only:
-+    #     with timer.Timer('package_bootstrap'):
-+    #         utils.create_tarball(paths.OUT_DIR, ['stage1', 'stage1-install'], paths.DIST_DIR / 'stage1-install.tar.xz')
-+    #     return
-+    set_default_toolchain(toolchains.Toolchain(Path("/usr"),Path("/usr")))
- 
-     if build_lldb:
-         # Swig is needed for both host and windows lldb.
-@@ -1142,7 +1143,7 @@ def main():
-         stage2.libzstd = libzstd_builder
- 
-         libxml2_builder = builders.LibXml2Builder(host_configs)
--        libxml2_builder.build()
-+        # libxml2_builder.build()
-         stage2.libxml2 = libxml2_builder
- 
-         stage2.build_lldb = build_lldb
-@@ -1150,7 +1151,7 @@ def main():
-             stage2.swig_executable = swig_builder.install_dir / 'bin' / 'swig'
- 
-             xz_builder = builders.XzBuilder(host_configs)
--            xz_builder.build()
-+            # xz_builder.build()
-             stage2.liblzma = xz_builder
- 
-             libncurses = builders.LibNcursesBuilder(host_configs)
-diff --git a/py3_utils.py b/py3_utils.py
-index 0f0e9c0..a36904f 100644
---- a/py3_utils.py
-+++ b/py3_utils.py
-@@ -22,7 +22,7 @@ import sys
- THIS_DIR = os.path.realpath(os.path.dirname(__file__))
- def get_host_tag():
-     if sys.platform.startswith('linux'):
--        return 'linux-x86'
-+        return 'linux-arm64'
-     if sys.platform.startswith('darwin'):
-         return 'darwin-x86'
-     raise RuntimeError('Unsupported host: {}'.format(sys.platform))
-diff --git a/src/llvm_android/builders.py b/src/llvm_android/builders.py
-index b6c0ae1..b317953 100644
---- a/src/llvm_android/builders.py
-+++ b/src/llvm_android/builders.py
-@@ -231,6 +231,8 @@ class Stage2Builder(base_builders.LLVMBuilder):
- 
-         if self.debug_build:
-             defines['CMAKE_BUILD_TYPE'] = 'Debug'
-+        else:
-+            defines['CMAKE_BUILD_TYPE'] = 'Release'
- 
-         if self.build_instrumented:
-             defines['LLVM_BUILD_INSTRUMENTED'] = 'ON'
-diff --git a/src/llvm_android/configs.py b/src/llvm_android/configs.py
-index 0bf452f..f81e97c 100644
---- a/src/llvm_android/configs.py
-+++ b/src/llvm_android/configs.py
-@@ -292,16 +292,16 @@ class LinuxConfig(_GccConfig):
-     """Configuration for Linux targets."""
- 
-     target_os: hosts.Host = hosts.Host.Linux
--    sysroot: Optional[Path] = paths.GCC_ROOT / 'host' / 'x86_64-linux-glibc2.17-4.8' / 'sysroot'
--    gcc_root: Path = paths.GCC_ROOT / 'host' / 'x86_64-linux-glibc2.17-4.8'
--    gcc_triple: str = 'x86_64-linux'
-+    sysroot: Optional[Path] = Path('/')
-+    gcc_root: Path = Path('/')
-+    gcc_triple: str = 'aarch64-linux'
-     gcc_ver: str = '4.8.3'
-     is_cross_compiling: bool = False
-     is_musl: bool = False
- 
-     @property
-     def llvm_triple(self) -> str:
--        return 'i386-unknown-linux-gnu' if self.is_32_bit else 'x86_64-unknown-linux-gnu'
-+        return 'i386-unknown-linux-gnu' if self.is_32_bit else 'aarch64-unknown-linux-gnu'
- 
-     @property
-     def cflags(self) -> List[str]:
-diff --git a/src/llvm_android/hosts.py b/src/llvm_android/hosts.py
-index b5c15c3..d35209e 100644
---- a/src/llvm_android/hosts.py
-+++ b/src/llvm_android/hosts.py
-@@ -51,7 +51,7 @@ class Host(enum.Enum):
-         """Returns the os tag of current Host."""
-         return {
-             Host.Darwin: 'darwin-x86',
--            Host.Linux: 'linux-x86',
-+            Host.Linux: 'linux-arm64',
-             Host.Windows: 'windows-x86',
-         }[self]
- 
-diff --git a/src/llvm_android/paths.py b/src/llvm_android/paths.py
-index dca8249..13f7a5d 100644
---- a/src/llvm_android/paths.py
-+++ b/src/llvm_android/paths.py
-@@ -35,8 +35,7 @@ TOOLCHAIN_DIR: Path = ANDROID_DIR / 'toolchain'
- TOOLCHAIN_UTILS_DIR: Path = EXTERNAL_DIR / 'toolchain-utils'
- TOOLCHAIN_LLVM_PATH: Path = TOOLCHAIN_DIR / 'llvm-project'
- 
--CLANG_PREBUILT_DIR: Path = (PREBUILTS_DIR / 'clang' / 'host' / hosts.build_host().os_tag
--                            / constants.CLANG_PREBUILT_VERSION)
-+CLANG_PREBUILT_DIR: Path = (PREBUILTS_DIR / 'clang' / 'host' / hosts.build_host().os_tag)
- CLANG_PREBUILT_LIBCXX_HEADERS: Path = CLANG_PREBUILT_DIR / 'include' / 'c++' / 'v1'
- WINDOWS_CLANG_PREBUILT_DIR: Path = (PREBUILTS_DIR / 'clang' / 'host' / 'windows-x86'
-                                     / constants.CLANG_PREBUILT_VERSION)
-@@ -55,7 +54,7 @@ M4_BIN_PATH: Path = BUILD_TOOLS_DIR / hosts.build_host().os_tag / 'bin' / 'm4'
- MAKE_BIN_PATH: Path = BUILD_TOOLS_DIR / hosts.build_host().os_tag / 'bin' / 'make'
- # Use the musl version of ninja on Linux, it is statically linked and avoids
- # problems with LD_LIBRARY_PATH causing ninja to use the wrong libc++.so.
--NINJA_BIN_PATH: Path = BUILD_TOOLS_DIR / hosts.build_host().os_tag_musl / 'bin' / 'ninja'
-+NINJA_BIN_PATH: Path = BUILD_TOOLS_DIR / hosts.build_host().os_tag / 'bin' / 'ninja'
- 
- LIBEDIT_SRC_DIR: Path = EXTERNAL_DIR / 'libedit'
- LIBNCURSES_SRC_DIR: Path = EXTERNAL_DIR / 'libncurses'
+
+py3_utils.py
+  Use the host Python interpreter instead of Android's x86 prebuilt Python.
+
+paths.py
+  Point CMake, Make, Ninja, Python, and bootstrap LLVM/Clang references to Linux AArch64 host tools.
+  Important intent:
+    CMAKE_BIN_PATH -> /usr/bin/cmake
+    MAKE_BIN_PATH  -> /usr/bin/make
+    NINJA_BIN_PATH -> /usr/bin/ninja
+    Python         -> /usr/bin/python3
+
+configs.py
+  Change Linux host configuration from x86_64 to AArch64:
+    llvm_triple -> aarch64-unknown-linux-gnu
+    gcc_triple  -> aarch64-linux-gnu or host equivalent
+    sysroot     -> none / host-rooted setup suitable for the local AArch64 host
+
+builders.py
+  Stage1Builder must include AArch64 as a target backend.
+  In the tested build, stage1 CMakeCache contained:
+    LLVM_DEFAULT_TARGET_TRIPLE:STRING=aarch64-unknown-linux-gnu
+    LLVM_TARGETS_TO_BUILD:STRING=AArch64;X86
+    LLVM_ENABLE_RUNTIMES:STRING=
+
+base_builders.py
+  For stage1, avoid enabling LLVM runtimes and builtins target lists.
+  Set LLVM_DEFAULT_TARGET_TRIPLE for Linux to the current config triple.
+  Keep stage1 focused on producing a usable AArch64 host compiler.
+
+do_build.py
+  Use:
+    stage1.build_android_targets = False
+  Guard stage1 header-link generation when runtimes are skipped.
+  Avoid building unnecessary Windows/LLDB paths by invoking build.py with:
+    --no-build windows,lldb
+  Use:
+    --skip-tests --no-musl --skip-runtimes
+
+Build command:
+  cd ${SOURCE_ROOT}
+  export PYTHONPATH="$PWD/external/toolchain-utils${PYTHONPATH:+:$PYTHONPATH}"
+  python3 toolchain/llvm_android/build.py \
+    --incremental \
+    --no-build windows,lldb \
+    --skip-tests \
+    --no-musl \
+    --skip-runtimes
+
+Observed stage2 status:
+  The full stage2 build failed late in builtins-i386-unknown-linux-gnu because the AArch64 host lacked i386 glibc headers/sysroot.
+  The required out/stage2/bin host tools had already been produced and were verified as Linux AArch64 executables.
+
+NDK overlay:
+  Copy ${SOURCE_ROOT}/out/stage2/bin/. to:
+    ${NDK_R26D}/toolchains/llvm/prebuilt/linux-x86_64/bin/
+
+  Copy ${SOURCE_ROOT}/out/stage2/lib/libxml2.so.16 to:
+    ${NDK_R26D}/toolchains/llvm/prebuilt/linux-x86_64/lib/libxml2.so.16
+
+SDK/Gradle notes:
+  Android Gradle Plugin may invoke SDK CMake/Ninja and Maven aapt2.
+  Replace or wrap SDK cmake/ninja with AArch64 versions.
+  Override Maven aapt2 with:
+    -Dorg.gradle.project.android.aapt2FromMavenOverride=${ANDROID_SDK_ROOT}/build-tools/34.0.0/aapt2

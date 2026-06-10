@@ -1,237 +1,179 @@
-# How to Build on Aarch64 Linux
+# How to Build Android NDK r26d Host Tools on AArch64 Linux
+
+This branch documents an unofficial Linux AArch64 host-tools overlay for Android NDK r26d.
+
+This is not an official Google or Android NDK release.
+
+## Target
+
+```text
+Android NDK: r26d
+Pkg.Revision: 26.3.11579264
+Clang: Android clang 17.0.2, based on r487747e
+LLVM base revision: c4c5e79dd4b4c78eee7cffd9b0d7394b5bedcf12
+Android llvm_android revision: 0f058ab00ec6c9b8b39956c1393bcc405a5498d3
+Host: Linux AArch64
+Verified Android ABI: arm64-v8a
+```
+
+The goal is to run the NDK host tools natively on Linux AArch64 while keeping the official NDK r26d layout.
+
+The overlay intentionally keeps this directory name:
+
+```text
+toolchains/llvm/prebuilt/linux-x86_64/
+```
+
+That path is part of the official NDK layout expected by Android Gradle Plugin, CMake, and the NDK toolchain file. The path name does not imply that the host executables are x86_64. In this overlay, the executables inside `bin/` are Linux AArch64 binaries.
 
 ## Clone Source Code
 
 ```shell
-cd ${SOURCE_ROOT}
+cd ${SOURCE_ROOT_PARENT}
 repo init -u https://android.googlesource.com/platform/manifest -b llvm-toolchain
 repo sync -c
 ```
+
+Then check out the r26d toolchain revisions:
+
+```shell
+cd ${SOURCE_ROOT}/toolchain/llvm_android
+git checkout 0f058ab00ec6c9b8b39956c1393bcc405a5498d3
+
+cd ${SOURCE_ROOT}/toolchain/llvm-project
+git checkout c4c5e79dd4b4c78eee7cffd9b0d7394b5bedcf12
+```
+
 ## Prepare Environment
 
-Install Required Packages
+Install host tools and libraries:
 
 ```shell
-apt install libc++-dev bison ninja cmake
+sudo apt update
+sudo apt install -y build-essential cmake ninja-build python3 rsync zstd libc++-dev libc++abi-dev libz-dev libxml2-dev
 ```
-Create Symbolic Links
-```shell
-cd ${SOURCE_ROOT}/prebuilts/build-tools/linux-arm64/bin
-ln -sf /bin/bison .
-ln -sf /bin/ninja .
 
-cd ${SOURCE_ROOT}/prebuilts/clang/host
-ln -s /usr linux-arm64
+Use an official Android NDK r26d installation as the base NDK:
 
-cd ${SOURCE_ROOT}/prebuilts/cmake
-ln -s /usr linux-arm64
-
-cd ${SOURCE_ROOT}/prebuilts/python
-ln -s /usr linux-arm64
+```text
+${ANDROID_SDK_ROOT}/ndk/26.3.11579264
 ```
 
 ## Modify Build Scripts
-${SOURCE_ROOT}/toolchain/llvm_android/do_build.py
-### Disable stage1 and set stage2 toolchain to system toolchain
-Comment out the following lines and add 'set_default_toolchain(toolchains.Toolchain(Path("/usr"),Path("/usr")))'
-```python
-# if not args.bootstrap_use_prebuilt and not args.bootstrap_use:
-#     stage1 = builders.Stage1Builder(host_configs)
-#     stage1.build_name = 'stage1'
-#     stage1.svn_revision = android_version.get_svn_revision()
-#     # Build lldb for lldb-tblgen. It will be used to build lldb-server and windows lldb.
-#     stage1.build_lldb = build_lldb
-#     stage1.enable_mlgo = mlgo
-#     stage1.build_extra_tools = args.run_tests_stage1
-#     # In a debug or instrumented build, stage1 toolchain builds the stage2
-#     # runtimes.  We need cross runtimes in stage1 so CMake can find musl libc++
-#     # for stage2 musl runtimes.
-#     stage1.build_cross_runtimes = hosts.build_host().is_linux and (args.debug or instrumented)
-#     stage1.libzstd = libzstd_builder
-#     stage1.build()
-#     if hosts.build_host().is_linux:
-#         add_header_links('stage1', host_config=configs.host_config(musl))
-#     # stage1 test is off by default, turned on by --run-tests-stage1,
-#     # and suppressed by --skip-tests.
-#     if not args.skip_tests and args.run_tests_stage1:
-#         stage1.test()
-#     set_default_toolchain(stage1.installed_toolchain)
-# if args.bootstrap_use:
-#     # Remove previous install directories, since the bootstrap compiler
-#     # will overwrite install directories.
-#     if (paths.OUT_DIR / 'stage1-install').exists():
-#         shutil.rmtree(paths.OUT_DIR / 'stage1-install')
-#     if (paths.OUT_DIR / 'stage2-install').exists():
-#         shutil.rmtree(paths.OUT_DIR / 'stage2-install')
-#     with timer.Timer('extract_bootstrap'):
-#         utils.extract_tarball(paths.OUT_DIR, args.bootstrap_use)
-#     # If we were to use the full build as bootstrap, we need to rename it to stage-install.
-#     if (paths.OUT_DIR / 'stage2-install').exists():
-#         (paths.OUT_DIR / 'stage2-install').rename(paths.OUT_DIR / 'stage1-install')
-#     set_default_toolchain(toolchains.Toolchain(paths.OUT_DIR / 'stage1-install', paths.OUT_DIR / 'stage1'))
-# if args.bootstrap_build_only:
-#     with timer.Timer('package_bootstrap'):
-#         utils.create_tarball(paths.OUT_DIR, ['stage1', 'stage1-install'], paths.DIST_DIR / 'stage1-install.tar.xz')
-#     return
-set_default_toolchain(toolchains.Toolchain(Path("/usr"),Path("/usr")))
-```
-### Disable building libxml2 and xz
-Comment out the following lines:
-```python
 
-     if build_lldb:
-         # Swig is needed for both host and windows lldb.
-@@ -1142,7 +1143,7 @@ def main():
-         stage2.libzstd = libzstd_builder
- 
-         libxml2_builder = builders.LibXml2Builder(host_configs)
--        libxml2_builder.build()
-+        # libxml2_builder.build()
-         stage2.libxml2 = libxml2_builder
- 
-         stage2.build_lldb = build_lldb
-@@ -1150,7 +1151,7 @@ def main():
-             stage2.swig_executable = swig_builder.install_dir / 'bin' / 'swig'
- 
-             xz_builder = builders.XzBuilder(host_configs)
--            xz_builder.build()
-+            # xz_builder.build()
-             stage2.liblzma = xz_builder
- 
-             libncurses = builders.LibNcursesBuilder(host_configs)
-```
-### Modify host tag
-${SOURCE_ROOT}/toolchain/llvm_android/py3_utils.py
+The local patch summary is in [`diff.txt`](./diff.txt). The important points are:
 
-Change the host tag from linux-x86to linux-arm64:
-```python
- THIS_DIR = os.path.realpath(os.path.dirname(__file__))
- def get_host_tag():
-     if sys.platform.startswith('linux'):
--        return 'linux-x86'
-+        return 'linux-arm64'
-     if sys.platform.startswith('darwin'):
-         return 'darwin-x86'
-     raise RuntimeError('Unsupported host: {}'.format(sys.platform))
-```
-
-### Add CMake build type configuration
-${SOURCE_ROOT}/toolchain/llvm_android/src/llvm_android/builders.py
-
-Add the release build type configuration:
-```python
-class Stage2Builder(base_builders.LLVMBuilder):
- 
-         if self.debug_build:
-             defines['CMAKE_BUILD_TYPE'] = 'Debug'
-+        else:
-+            defines['CMAKE_BUILD_TYPE'] = 'Release'
- 
-         if self.build_instrumented:
-             defines['LLVM_BUILD_INSTRUMENTED'] = 'ON'
-```
-
-### Update Linux configuration for ARM64
-${SOURCE_ROOT}/toolchain/llvm_android/src/llvm_android/configs.py
-Change the configuration to use system toolchain and set ARM64 triple:
-```python
-class LinuxConfig(_GccConfig):
-     """Configuration for Linux targets."""
- 
-     target_os: hosts.Host = hosts.Host.Linux
--    sysroot: Optional[Path] = paths.GCC_ROOT / 'host' / 'x86_64-linux-glibc2.17-4.8' / 'sysroot'
--    gcc_root: Path = paths.GCC_ROOT / 'host' / 'x86_64-linux-glibc2.17-4.8'
--    gcc_triple: str = 'x86_64-linux'
-+    sysroot: Optional[Path] = Path('/')
-+    gcc_root: Path = Path('/')
-+    gcc_triple: str = 'aarch64-linux'
-     gcc_ver: str = '4.8.3'
-     is_cross_compiling: bool = False
-     is_musl: bool = False
- 
-     @property
-     def llvm_triple(self) -> str:
--        return 'i386-unknown-linux-gnu' if self.is_32_bit else 'x86_64-unknown-linux-gnu'
-+        return 'i386-unknown-linux-gnu' if self.is_32_bit else 'aarch64-unknown-linux-gnu'
- 
-     @property
-     def cflags(self) -> List[str]:
-```
-### Update host OS tag mapping
-${SOURCE_ROOT}/toolchain/llvm_android/src/llvm_android/hosts.py
-Change Linux host tag to linux-arm64:
-
-```python
-class Host(enum.Enum):
-         """Returns the os tag of current Host."""
-         return {
-             Host.Darwin: 'darwin-x86',
--            Host.Linux: 'linux-x86',
-+            Host.Linux: 'linux-arm64',
-             Host.Windows: 'windows-x86',
-         }[self]
-```
-### Update paths for ARM64
-${SOURCE_ROOT}/toolchain/llvm_android/src/llvm_android/paths.py
-
-Modify the paths to use the system toolchain:
-```python
-@@ -35,8 +35,7 @@ TOOLCHAIN_DIR: Path = ANDROID_DIR / 'toolchain'
- TOOLCHAIN_UTILS_DIR: Path = EXTERNAL_DIR / 'toolchain-utils'
- TOOLCHAIN_LLVM_PATH: Path = TOOLCHAIN_DIR / 'llvm-project'
- 
--CLANG_PREBUILT_DIR: Path = (PREBUILTS_DIR / 'clang' / 'host' / hosts.build_host().os_tag
--                            / constants.CLANG_PREBUILT_VERSION)
-+CLANG_PREBUILT_DIR: Path = (PREBUILTS_DIR / 'clang' / 'host' / hosts.build_host().os_tag)
- CLANG_PREBUILT_LIBCXX_HEADERS: Path = CLANG_PREBUILT_DIR / 'include' / 'c++' / 'v1'
- WINDOWS_CLANG_PREBUILT_DIR: Path = (PREBUILTS_DIR / 'clang' / 'host' / 'windows-x86'
-                                     / constants.CLANG_PREBUILT_VERSION)
-@@ -55,7 +54,7 @@ M4_BIN_PATH: Path = BUILD_TOOLS_DIR / hosts.build_host().os_tag / 'bin' / 'm4'
- MAKE_BIN_PATH: Path = BUILD_TOOLS_DIR / hosts.build_host().os_tag / 'bin' / 'make'
- # Use the musl version of ninja on Linux, it is statically linked and avoids
- # problems with LD_LIBRARY_PATH causing ninja to use the wrong libc++.so.
--NINJA_BIN_PATH: Path = BUILD_TOOLS_DIR / hosts.build_host().os_tag_musl / 'bin' / 'ninja'
-+NINJA_BIN_PATH: Path = BUILD_TOOLS_DIR / hosts.build_host().os_tag / 'bin' / 'ninja'
- 
- LIBEDIT_SRC_DIR: Path = EXTERNAL_DIR / 'libedit'
- LIBNCURSES_SRC_DIR: Path = EXTERNAL_DIR / 'libncurses'
-```
+- use host Python instead of x86 prebuilt Python;
+- use AArch64 host CMake/Ninja/toolchain paths;
+- set the Linux host triple to `aarch64-unknown-linux-gnu`;
+- ensure stage1 builds AArch64 support;
+- keep stage1 runtimes disabled;
+- skip Windows, LLDB, tests, and musl paths;
+- avoid running generated host tools through qemu.
 
 ## Build the Toolchain
+
 ```shell
 cd ${SOURCE_ROOT}
-python3 toolchain/llvm_android/build.py --no-build windows --skip-tests --no-musl
+export PYTHONPATH="$PWD/external/toolchain-utils${PYTHONPATH:+:$PYTHONPATH}"
+python3 toolchain/llvm_android/build.py \
+  --incremental \
+  --no-build windows,lldb \
+  --skip-tests \
+  --no-musl \
+  --skip-runtimes
 ```
 
-## View Complete Changes
-All modifications are available in the `diff.txt` file.
+The complete stage2 build may still fail late while building `builtins-i386-unknown-linux-gnu` if the AArch64 host does not have an i386 glibc sysroot/header setup. For this overlay, the required host executables were already produced before that failure under:
 
-## Modify android-ndk-r29-linux.zip
+```text
+${SOURCE_ROOT}/out/stage2/bin
+```
+
+The tested release package uses `out/stage2/bin` and `out/stage2/lib/libxml2.so.16`.
+
+## Modify Android NDK r26d
+
+Back up the official NDK host `bin` directory and original libxml2 files, then overlay the AArch64 host tools:
+
 ```shell
-cd ${R29}/prebuilt/linux-x86_64/bin
-ln -sf /bin/make .
-ln -sf /bin/yasm .
-ln -sf /bin/ytasm .
+NDK_R26D=${ANDROID_SDK_ROOT}/ndk/26.3.11579264
+NDKPRE=${NDK_R26D}/toolchains/llvm/prebuilt/linux-x86_64
+NDKBIN=${NDKPRE}/bin
+NDKLIB=${NDKPRE}/lib
+TS=$(date +%Y%m%d%H%M%S)
 
-cd ${R29}/toolchains/llvm/prebuilt/linux-x86_64/bin
-cp -f ${SOURCE_ROOT}/out/stage2/bin/* .
+cp -a "$NDKBIN" "$NDKPRE/bin.x86_64.backup-$TS"
+mkdir -p "$NDKPRE/lib.backup-$TS"
+cp -a "$NDKLIB"/libxml2.so* "$NDKPRE/lib.backup-$TS/" 2>/dev/null || true
 
-cd ${R29}/toolchains/llvm/prebuilt/linux-x86_64/lib/clang
-cp -r ${SOURCE_ROOT}/out/stage2/lib/clang/22 .
-cd 22/lib
-cp ${R29}/toolchains/llvm/prebuilt/linux-x86_64/lib/clang/21/lib/linux .
-
-nano ${R29}/build/tools/ndk_bin_common.sh
-# add aarch64 to case
-HOST_ARCH=$(uname -m)
-case $HOST_ARCH in
-  arm64) HOST_ARCH=arm64;;
-  i?86) HOST_ARCH=x86;;
-  x86_64|amd64|aarch64) HOST_ARCH=x86_64;;
-  *) echo "ERROR: Unknown host CPU architecture: $HOST_ARCH"
-     exit 1
-esac
-
-cd ${R29}/toolchains/llvm/prebuilt/linux-x86_64/python3/bin
-ln -sf /bin/python3 pyhton3.11
+cp -a "${SOURCE_ROOT}/out/stage2/bin/." "$NDKBIN/"
+cp -a "${SOURCE_ROOT}/out/stage2/lib/libxml2.so.16" "$NDKLIB/libxml2.so.16"
 ```
+
+## SDK-side tools
+
+NDK host tools alone are not enough for full Android Gradle builds on Linux AArch64. The SDK-side tools also need to be Linux AArch64 binaries or wrappers:
+
+```text
+build-tools/<version>/aapt2
+build-tools/<version>/aapt
+build-tools/<version>/aidl
+build-tools/<version>/zipalign
+cmake/<version>/bin/cmake
+cmake/<version>/bin/ninja
+```
+
+If the SDK CMake package contains x86_64 `cmake` and `ninja`, replace them with AArch64 host tools while keeping the SDK path stable:
+
+```shell
+SDK=${ANDROID_SDK_ROOT}
+CMAKEBIN=${SDK}/cmake/3.22.1/bin
+TS=$(date +%Y%m%d%H%M%S)
+
+cp -a "$CMAKEBIN" "${SDK}/cmake/3.22.1/bin.x86_64.backup-$TS"
+mv "$CMAKEBIN/cmake" "$CMAKEBIN/cmake.x86_64"
+mv "$CMAKEBIN/ninja" "$CMAKEBIN/ninja.x86_64"
+ln -s /usr/bin/cmake "$CMAKEBIN/cmake"
+ln -s /usr/bin/ninja "$CMAKEBIN/ninja"
+```
+
+For Gradle/AGP, force AArch64 `aapt2` instead of Maven's x86_64 `aapt2`:
+
+```shell
+export GRADLE_OPTS="-Dorg.gradle.project.android.aapt2FromMavenOverride=${ANDROID_SDK_ROOT}/build-tools/34.0.0/aapt2 ${GRADLE_OPTS:-}"
+```
+
+## Verify
+
+See [`VERIFY.md`](./VERIFY.md).
+
+The key checks are:
+
+```shell
+file -L ${NDK_R26D}/toolchains/llvm/prebuilt/linux-x86_64/bin/clang
+ps -ef | grep -Ei 'qemu|box64|box86|rosetta' | grep -v grep || true
+```
+
+Expected:
+
+```text
+clang: ELF 64-bit ... ARM aarch64
+qemu process list: empty
+```
+
+## Package a release
+
+See [`RELEASE.md`](./RELEASE.md) and [`scripts/package-r26d-release.sh`](./scripts/package-r26d-release.sh).
+
+The recommended asset name is:
+
+```text
+android-ndk-r26d-linux-aarch64-host-tools-unofficial.tar.zst
+```
+
+The archive is an overlay for an official NDK r26d installation. It is not a full NDK mirror.
+
+## Cleanup
+
+See [`CLEANUP.md`](./CLEANUP.md). Run the cleanup script in dry-run mode first.
